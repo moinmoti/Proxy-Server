@@ -8,7 +8,7 @@ class WebProxyServer:
 
     cache_responses = {}
 
-    def __init__(self, port=8081, listen_address="127.0.0.1", debug=False, cache=True):
+    def __init__(self, port=8080, listen_address="127.0.0.1", debug=False, cache=True):
         self.port = port
         self.listen_address = listen_address
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -87,7 +87,7 @@ class WebProxyServer:
         host_name = parsed_request['URL'].split("//")[-1].split("/")[0].strip()
         if 'Host' in parsed_request:
             host_name = parsed_request['Host']
-        connect_port = 8081
+        connect_port = 8080
         if ":" in host_name:
             host_name = host_name.split(':')
             connect_port = int(host_name[1])
