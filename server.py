@@ -8,7 +8,7 @@ class WebProxyServer:
 
     cache_responses = {}
 
-    def __init__(self, port=1234, listen_address="127.0.0.1", debug=False, cache=True):
+    def __init__(self, port=8080, listen_address="127.0.0.1", debug=False, cache=True):
         self.port = port
         self.listen_address = listen_address
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -87,9 +87,10 @@ class WebProxyServer:
         host_name = parsed_request['URL'].split("//")[-1].split("/")[0].strip()
         if 'Host' in parsed_request:
             host_name = parsed_request['Host']
-        connect_port = 8093
-        if ":" in host_name:
-            host_name = host_name.split(':')
+        connect_port = 80
+        print "hostname : %s" % host_name
+        if " " in host_name:
+            host_name = host_name.split()
             connect_port = int(host_name[1])
             host_name = host_name[0]
         try:
@@ -97,26 +98,24 @@ class WebProxyServer:
         except:
             return {}, {}
 
-        print resolved_ip, connect_port
         # Making the request
         client_socket.connect((resolved_ip, connect_port))
 
         fl = request.split('\n')[0];
-	print fl
-        fl = fl.split(' ')
-	pr = fl[1]
-	pr = (pr.split('://')[1]).split('/')[1]
-	print pr
-	try:
-        	filename = '/' + pr
-	except Exception as e:
-		print e
-        fl[1] = filename
-        fl = ' '.join(fl) + '\r'
+        pr = fl.split()
+        print pr
+        filename = pr[1].split('/')
+        filename = '/' + filename[3]
+        # if (len(filename) == 4):
+        #     filename = '/' + filename[3]
+        # else :
+        #     filename = '/' + filename[1]
+        pr[1] = filename
+        fl = ' '.join(pr) + '\r'
         lines = request.split('\n')
         lines[0] = fl
         newRequest = '\n'.join(lines) + '\n'
-	print newRequest
+
         client_socket.send(newRequest)
         return_data = self.receive_complete_request(client_socket)
         client_socket.close()
@@ -199,7 +198,7 @@ class WebProxyServer:
 
     def listen_for_request_threaded(self, client, address):
         request = client.recv(self.size)
-        request = self.clean_unwanted_headers(request)
+        # request = self.clean_unwanted_headers(request)
         parsed_request = self.parse_request(request)
 
         if parsed_request['Valid']:
