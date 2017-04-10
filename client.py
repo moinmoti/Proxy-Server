@@ -16,6 +16,7 @@ D = {0: "GET", 1:"POST"}
 
 while True:
     filename = "%d.data" % (int(random.random()*9)+1)
+    filename = "11.data"
     METHOD = D[int(random.random()*len(D))]
     os.system("curl --request %s --proxy 127.0.0.1:%s --local-port %s 127.0.0.1:%s/%s" % (METHOD, PROXY_PORT, CLIENT_PORT, SERVER_PORT, filename))
     time.sleep(10)
