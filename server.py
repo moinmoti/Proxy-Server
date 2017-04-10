@@ -126,7 +126,7 @@ class WebProxyServer:
         if len(headers) == 0:
             # Something bad happened with request, lets not cache it.
             return False
-        if 'http/1.1 200 ok' not in headers:
+        if 'http/1.0 200 ok' not in headers:
             return False
         if 'cache-control' in headers:
             value = headers['cache-control']
