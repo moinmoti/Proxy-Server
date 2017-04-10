@@ -5,7 +5,7 @@ import SocketServer
 import SimpleHTTPServer
 
 if len(sys.argv) < 2:
-    print "Needs one argument: server port"
+    print "Needs one argument: server port" #60002
     raise SystemExit
 
 PORT = int(sys.argv[1])
