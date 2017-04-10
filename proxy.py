@@ -78,14 +78,35 @@ class proxyServer:
         csock.close()
         return response_data, response_headers
 
+    @staticmethod
+    def is_cachable(response_headers):
+        if len(response_headers) == 0:
+            # Something bad happened with request, lets not cache it.
+            return False
+        if 'http/1.0 200 ok' not in response_headers:
+            return False
+        if 'cache-control' in response_headers:
+            value = response_headers['cache-control']
+            if "private" in value or "no-cache" in value:
+                return False
+        if 'pragma' in response_headers:
+            value = response_headers['pragma']
+            if "private" in value or "no-cache" in value:
+                return False
+        return True
+
     def fetchRequest(self, raw_request, request):
-        if request['url'] in self.cache_responses:
+        if request['type'] == "GET" and request['url'] in self.cache_responses:
             print "Found " + request['url'] + " in cache"
             return self.cache_responses[request['url']]
         else:
             response_data, response_headers = self.fetch_from_server(raw_request, request)
 
         print "Response Headers : \n", response_headers
+
+        if request['type'] == "GET" and self.is_cachable(response_headers):
+            print "Adding " + request['url'] + " to cache"
+            self.cache_responses[request['url']] = response_data
         return response_data
 
     def listenThread(self, csock, addr):
