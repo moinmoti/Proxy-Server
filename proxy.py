@@ -5,6 +5,7 @@ from threading import Thread
 
 class proxyServer:
     cache_responses = {}
+    request_log = {}
 
     def __init__(self, port, listen_addr):
         self.port = port
@@ -78,8 +79,7 @@ class proxyServer:
         csock.close()
         return response_data, response_headers
 
-    @staticmethod
-    def is_cachable(response_headers):
+    def is_cachable(self, request, response_headers):
         if len(response_headers) == 0:
             # Something bad happened with request, lets not cache it.
             return False
@@ -93,6 +93,13 @@ class proxyServer:
             value = response_headers['pragma']
             if "private" in value or "no-cache" in value:
                 return False
+        if not request['url'] in self.request_log:
+            return False
+        if len(self.request_log[request['url']]) < 3:
+            return False
+        requestTime = time.mktime(time.strptime(self.request_log[request['url']][len(self.request_log[request['url']])-3], "%a %b  %d %H:%M:%S %Z %Y"))
+        if time.time() - requestTime > 300.0:
+            return False
         return True
 
     def fetchRequest(self, raw_request, request):
@@ -104,7 +111,7 @@ class proxyServer:
 
         print "Response Headers : \n", response_headers
 
-        if request['type'] == "GET" and self.is_cachable(response_headers):
+        if request['type'] == "GET" and self.is_cachable(request, response_headers):
             print "Adding " + request['url'] + " to cache"
             self.cache_responses[request['url']] = response_data
         return response_data
@@ -123,6 +130,10 @@ class proxyServer:
         request['hostname'] = request['host'].split(':')[0]
         request['port'] = request['host'].split(':')[1]
         print request
+        if not request['url'] in self.request_log:
+            self.request_log[request['url']] = []
+        self.request_log[request['url']].append(time.strftime("%a %b  %d %H:%M:%S %Z %Y", time.localtime()))
+        print self.request_log
         response = self.fetchRequest(raw_request, request)
         csock.send(str(response))
 
