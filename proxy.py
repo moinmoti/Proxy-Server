@@ -15,6 +15,7 @@ class proxyServer:
         self.socket.bind((self.listen_addr, self.port))
         self.socket.listen(5)
         self.size = 4096
+        self.cache_size = 3
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.cache = True
 
@@ -119,8 +120,26 @@ class proxyServer:
 
         if request['type'] == "GET" and self.is_cachable(request, response_headers):
             print "Adding " + request['url'] + " to cache"
-            self.cache_responses[request['url']] = response_data
-            self.cache_log[request['url']] = request['mtime']
+            if request['url'] in self.cache_responses:
+                self.cache_responses[request['url']] = response_data
+                self.cache_log[request['url']] = request['mtime']
+            else:
+                if len(self.cache_responses) < self.cache_size:
+                    self.cache_responses[request['url']] = response_data
+                    self.cache_log[request['url']] = request['mtime']
+                else:
+                    mtimes = []
+                    for i in self.cache_log.values():
+                        mtimes.append(time.strptime(i, "%a %b  %d %H:%M:%S %Z %Y"))
+                    minTime = min(mtimes)
+                    for url in self.cache_responses.keys():
+                        if time.strptime(self.cache_log[url], "%a %b  %d %H:%M:%S %Z %Y") == minTime:
+                            print "removing", url, "from cache"
+                            del self.cache_responses[url]
+                            del self.cache_log[url]
+                    self.cache_responses[request['url']] = response_data
+                    self.cache_log[request['url']] = request['mtime']
+            print "Cache Size :", len(self.cache_responses)
         return response_data
 
     def listenThread(self, csock, addr):
