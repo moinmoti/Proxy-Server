@@ -3,6 +3,8 @@ import socket
 import time
 from threading import Thread
 
+blackList = [('geeksforgeeks.com', '69.172.201.153/32'),('localhost','127.0.0.1/32')]
+
 class proxyServer:
     cache_responses = {}
     request_log = {}
