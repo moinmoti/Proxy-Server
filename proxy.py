@@ -48,7 +48,7 @@ class proxyServer:
         return ''.join(data)#, parsed_headers
    
     def userAuthentication(self, request):
-	line3 = request.split('\n')[2]
+	line3 = request['authentication']
 	encodedb64 = line3.split(' ')[2]
 	auth_string  = base64.b64decode(encodedb64)
 	print('AUTH '+auth_string)
@@ -191,6 +191,7 @@ class proxyServer:
         request['hostname'] = request['host'].split(':')[0]
         request['port'] = request['host'].split(':')[1]
         request['mtime'] = time.strftime("%a %b  %d %H:%M:%S %Z %Y", time.localtime())
+	request['authentication'] = raw_request.split('\n')[2]
         print request
         if not request['url'] in self.request_log:
             self.request_log[request['url']] = []

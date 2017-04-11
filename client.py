@@ -12,6 +12,8 @@ CLIENT_PORT = sys.argv[1]
 PROXY_PORT = sys.argv[2]
 SERVER_PORT = sys.argv[3]
 
+username = 'myName'
+password = 'myPass'
 D = {0: "GET", 1:"POST"}
 
 while True:
@@ -19,5 +21,5 @@ while True:
     # filename = "11.data"
     METHOD = D[int(random.random()*len(D))]
     METHOD = "GET"
-    os.system("curl --request %s --proxy 127.0.0.1:%s --local-port %s 127.0.0.1:%s/%s" % (METHOD, PROXY_PORT, CLIENT_PORT, SERVER_PORT, filename))
+    os.system("curl --request GET --proxy 127.0.0.1:%s --local-port %s 127.0.0.1:%s/%s -u %s:%s" % (  PROXY_PORT, CLIENT_PORT, SERVER_PORT, filename, username, password))
     time.sleep(3)
