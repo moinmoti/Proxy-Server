@@ -6,6 +6,7 @@ from threading import Thread
 class proxyServer:
     cache_responses = {}
     request_log = {}
+    cache_log = {}
 
     def __init__(self, port, listen_addr):
         self.port = port
@@ -19,8 +20,6 @@ class proxyServer:
 
     def recv_request(self, open_socket, timeout=1.0):
         open_socket.setblocking(0)
-        parsed_headers = {}
-        headers_expected = True
         data = []
         begin = time.time()
         while 1:
@@ -33,27 +32,12 @@ class proxyServer:
                 incoming_data = open_socket.recv(self.size)
                 if incoming_data:
                     data.append(incoming_data)
-
-                    # Parsing the headers
-                    if headers_expected:
-                        for line in incoming_data.split('\n'):
-                            line = line.strip()
-                            if line is "":
-                                headers_expected = False
-                                break
-                            line = line.split(': ')
-                            key = line[0].strip()
-                            value = ''.join(line[1:]).strip()
-                            if key is not "":
-                                parsed_headers[key.lower()] = value
-
-                    # Reset the waiting timeout
                     begin = time.time()
                 else:
                     time.sleep(0.1)
             except:
                 pass
-        return ''.join(data), parsed_headers
+        return ''.join(data)#, parsed_headers
 
     def fetch_from_server(self, raw_request, request):
         csock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -75,29 +59,30 @@ class proxyServer:
         newRequest = '\n'.join(lines) + '\n'
 
         csock.send(newRequest)
-        response_data, response_headers = self.recv_request(csock)
+        response_data = self.recv_request(csock)
+        # response_data, response_headers = self.recv_request(csock)
         csock.close()
-        return response_data, response_headers
+        return response_data#, response_headers
 
     def is_cachable(self, request, response_headers):
         if len(response_headers) == 0:
             # Something bad happened with request, lets not cache it.
             return False
-        if 'http/1.0 200 ok' not in response_headers:
+        if 'HTTP/1.0 200 OK' not in response_headers:
             return False
-        if 'cache-control' in response_headers:
-            value = response_headers['cache-control']
+        if 'Cache-control' in response_headers:
+            value = response_headers['Cache-control']
             if "private" in value or "no-cache" in value:
                 return False
-        if 'pragma' in response_headers:
-            value = response_headers['pragma']
+        if 'Pragma' in response_headers:
+            value = response_headers['Pragma']
             if "private" in value or "no-cache" in value:
                 return False
         if not request['url'] in self.request_log:
             return False
         if len(self.request_log[request['url']]) < 3:
             return False
-        requestTime = time.mktime(time.strptime(self.request_log[request['url']][len(self.request_log[request['url']])-3], "%a %b  %d %H:%M:%S %Z %Y"))
+        requestTime = time.mktime(time.strptime(self.request_log[request['url']][-3], "%a %b  %d %H:%M:%S %Z %Y"))
         if time.time() - requestTime > 300.0:
             return False
         return True
@@ -105,20 +90,41 @@ class proxyServer:
     def fetchRequest(self, raw_request, request):
         if request['type'] == "GET" and request['url'] in self.cache_responses:
             print "Found " + request['url'] + " in cache"
-            return self.cache_responses[request['url']]
-        else:
-            response_data, response_headers = self.fetch_from_server(raw_request, request)
+            lines = raw_request.split('\n')
+            # print lines
+            lines[-2] = "If-Modified-Since: " + self.cache_log[request['url']] + "\r"
+            lines.append("\r\n\r\n")
+            raw_request = "\n".join(lines)
+            # return self.cache_responses[request['url']]
+        print "raw request : \n%s" % raw_request
 
-        print "Response Headers : \n", response_headers
+        response_data = self.fetch_from_server(raw_request, request)
+
+
+        # response_data, response_headers = self.fetch_from_server(raw_request, request)
+
+        # print "Response Headers : \n", response_headers
+        print "Response Data : \n", response_data
+
+        response_headers = {}
+        response_headers[response_data.split('\n')[0].strip('\r')] = ''
+        for line in response_data.split('\n'):
+            if ':' in line:
+                key = line.split(':')[0]
+                value = line.split(':')[1].strip('\r')
+                response_headers[key] = value
+
+        if "HTTP/1.0 304 Not Modified" in response_headers:
+            return self.cache_responses[request['url']]
 
         if request['type'] == "GET" and self.is_cachable(request, response_headers):
             print "Adding " + request['url'] + " to cache"
             self.cache_responses[request['url']] = response_data
+            self.cache_log[request['url']] = request['mtime']
         return response_data
 
     def listenThread(self, csock, addr):
         raw_request = csock.recv(self.size)
-        print "raw request : \n%s" % raw_request
         request_header = raw_request.split('\n')[0].split()
         request = {}
         # request_header = raw_request[0].split();
@@ -129,10 +135,11 @@ class proxyServer:
         request['port'] = 80
         request['hostname'] = request['host'].split(':')[0]
         request['port'] = request['host'].split(':')[1]
+        request['mtime'] = time.strftime("%a %b  %d %H:%M:%S %Z %Y", time.localtime())
         print request
         if not request['url'] in self.request_log:
             self.request_log[request['url']] = []
-        self.request_log[request['url']].append(time.strftime("%a %b  %d %H:%M:%S %Z %Y", time.localtime()))
+        self.request_log[request['url']].append(request['mtime'])
         print self.request_log
         response = self.fetchRequest(raw_request, request)
         csock.send(str(response))
