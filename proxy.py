@@ -2,8 +2,13 @@ import sys
 import socket
 import time
 from threading import Thread
+import base64
 
 blackList = [('geeksforgeeks.com', '69.172.201.153/32'),('localhost','127.0.0.1/32')]
+autherisedUsers = {
+		"myName":"myPass",
+		"myName2":"myPass2"
+	}
 
 class proxyServer:
     cache_responses = {}
@@ -16,7 +21,7 @@ class proxyServer:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.socket.bind((self.listen_addr, self.port))
         self.socket.listen(5)
-        self.size = 4096
+        self.size = 1024
         self.cache_size = 3
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.cache = True
@@ -41,8 +46,22 @@ class proxyServer:
             except:
                 pass
         return ''.join(data)#, parsed_headers
-
-    def blacklisting(self, server, csock,request):
+   
+    def userAuthentication(self, request):
+	line3 = request.split('\n')[2]
+	encodedb64 = line3.split(' ')[2]
+	auth_string  = base64.b64decode(encodedb64)
+	print('AUTH '+auth_string)
+	auth_string  = auth_string.split(':')
+	username = auth_string[0]
+	password  = auth_string[1]
+	if username in autherisedUsers.keys():
+		if autherisedUsers[username]==password:
+			return True
+	return False
+    def blacklisting(self, server, csock,request,authenticated):
+	if authenticated:
+		return False
     	print(request['hostname'])
 	ip = request['hostname']
 	cidr = str(ip)+'/32'
@@ -54,7 +73,8 @@ class proxyServer:
 	return False
 
     def fetch_from_server(self, raw_request, request,csock):
-	if self.blacklisting(server,csock,request):
+	authenticated=self.userAuthentication(request)	
+	if self.blacklisting(server,csock,request,authenticated):
 		return "Blacklisten\n"
         csock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         try:
@@ -159,6 +179,7 @@ class proxyServer:
 
     def listenThread(self, csock, addr):
         raw_request = csock.recv(self.size)
+	print "RAW REQUEST", raw_request
         request_header = raw_request.split('\n')[0].split()
         request = {}
         # request_header = raw_request[0].split();
