@@ -6,9 +6,9 @@ import base64
 
 blackList = [('geeksforgeeks.com', '69.172.201.153/32'),('localhost','127.0.0.1/32')]
 autherisedUsers = {
-		"myName":"myPass",
-		"myName2":"myPass2"
-	}
+    "myName":"myPass",
+    "myName2":"myPass2"
+    }
 
 class proxyServer:
     cache_responses = {}
@@ -25,6 +25,7 @@ class proxyServer:
         self.cache_size = 3
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.cache = True
+        self.authentication = True
 
     def recv_request(self, open_socket, timeout=1.0):
         open_socket.setblocking(0)
@@ -46,37 +47,40 @@ class proxyServer:
             except:
                 pass
         return ''.join(data)#, parsed_headers
-   
+
     def userAuthentication(self, request):
-	line3 = request['authentication']
-	encodedb64 = line3.split(' ')[2]
-	auth_string  = base64.b64decode(encodedb64)
-	print('AUTH '+auth_string)
-	auth_string  = auth_string.split(':')
-	username = auth_string[0]
-	password  = auth_string[1]
-	if username in autherisedUsers.keys():
-		if autherisedUsers[username]==password:
-			return True
-	return False
+        encodedb64 = request['authentication']
+        auth_string  = base64.b64decode(encodedb64)
+        print('AUTH '+auth_string)
+        auth_string  = auth_string.split(':')
+        username = auth_string[0]
+        password  = auth_string[1]
+        if username in autherisedUsers.keys():
+            if autherisedUsers[username]==password:
+                return True
+        return False
+
     def blacklisting(self, server, csock,request,authenticated):
-	if authenticated:
-		return False
-    	print(request['hostname'])
-	ip = request['hostname']
-	cidr = str(ip)+'/32'
-	if cidr in [x[1] for x in blackList]:
-		print('HERE')
-		#csock.send("This IP is blocked")
-		#csock.close()
-		return True
-	return False
+        if authenticated:
+            return False
+        print(request['hostname'])
+        ip = request['hostname']
+        cidr = str(ip)+'/32'
+        if cidr in [x[1] for x in blackList]:
+            print('HERE')
+            #csock.send("This IP is blocked")
+            #csock.close()
+            return True
+        return False
 
     def fetch_from_server(self, raw_request, request,csock):
-	authenticated=self.userAuthentication(request)	
-	if self.blacklisting(server,csock,request,authenticated):
-		return "Blacklisten\n"
-        csock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        if self.authentication:
+            authenticated = False
+            if 'authentication' in request.keys():
+                authenticated=self.userAuthentication(request)
+            if self.blacklisting(server,csock,request,authenticated):
+                return "Blacklisted\n"
+    	csock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         try:
             resolved_ip = socket.gethostbyname(request['hostname'])
         except:
@@ -104,7 +108,7 @@ class proxyServer:
         if len(response_headers) == 0:
             # Something bad happened with request, lets not cache it.
             return False
-        if 'HTTP/1.0 200 OK' not in response_headers:
+        if ('HTTP/1.0 200 OK' or 'HTTP/1.1 200 OK') not in response_headers:
             return False
         if 'Cache-control' in response_headers:
             value = response_headers['Cache-control']
@@ -179,7 +183,7 @@ class proxyServer:
 
     def listenThread(self, csock, addr):
         raw_request = csock.recv(self.size)
-	print "RAW REQUEST", raw_request
+        print "RAW REQUEST", raw_request
         request_header = raw_request.split('\n')[0].split()
         request = {}
         # request_header = raw_request[0].split();
@@ -191,7 +195,9 @@ class proxyServer:
         request['hostname'] = request['host'].split(':')[0]
         request['port'] = request['host'].split(':')[1]
         request['mtime'] = time.strftime("%a %b  %d %H:%M:%S %Z %Y", time.localtime())
-	request['authentication'] = raw_request.split('\n')[2]
+        line = raw_request.split('\n')[2].split(':')[0]
+        if line == "Authorization":
+            request['authentication'] = raw_request.split('\n')[2].split(':')[1].split()[1]
         print request
         if not request['url'] in self.request_log:
             self.request_log[request['url']] = []
